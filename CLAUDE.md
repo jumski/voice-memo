@@ -27,6 +27,17 @@ npm install          # Install dependencies (also sets up Husky)
 cp .env.example .env # Create environment file (add your Supabase credentials)
 ```
 
+## Viewing the Development Server
+
+When testing the application during development, always use the Playwright MCP tool to view http://localhost:5173. This allows you to:
+
+1. Navigate to the development server using `mcp__playwright__browser_navigate`
+2. Take screenshots of the current state with `mcp__playwright__browser_take_screenshot`
+3. Interact with the UI elements using `mcp__playwright__browser_click` and other interaction tools
+4. Sign in via Google OAuth by clicking the Google sign-in button on the login page
+
+This approach ensures you can properly test authentication flows and see the actual rendered application state.
+
 ## Architecture Patterns
 
 ### Authentication Flow

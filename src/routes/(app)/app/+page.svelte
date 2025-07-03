@@ -6,6 +6,14 @@
 	let audioChunks: Blob[] = [];
 	let pulseInterval: number | null = null;
 	let circleScale = $state(1);
+	let recordingTime = $state(0);
+	let timerInterval: number | null = null;
+
+	function formatTime(seconds: number): string {
+		const mins = Math.floor(seconds / 60);
+		const secs = seconds % 60;
+		return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+	}
 
 	async function toggleRecording() {
 		if (!recording) {
@@ -37,16 +45,22 @@
 				recording = true;
 
 				// Start pulsing animation
-				circleScale = 180 / 144;
+				circleScale = 200 / 144;
 				let growing = false;
 				pulseInterval = setInterval(() => {
 					if (growing) {
-						circleScale = 180 / 144;
+						circleScale = 200 / 144;
 					} else {
-						circleScale = 160 / 144;
+						circleScale = 170 / 144;
 					}
 					growing = !growing;
-				}, 600);
+				}, 800);
+
+				// Start timer
+				recordingTime = 0;
+				timerInterval = setInterval(() => {
+					recordingTime++;
+				}, 1000);
 			} catch (err) {
 				console.error('Error accessing microphone:', err);
 			}
@@ -63,6 +77,13 @@
 				pulseInterval = null;
 			}
 			circleScale = 1;
+
+			// Stop timer
+			if (timerInterval) {
+				clearInterval(timerInterval);
+				timerInterval = null;
+			}
+			recordingTime = 0;
 		}
 	}
 
@@ -72,6 +93,9 @@
 			if (pulseInterval) {
 				clearInterval(pulseInterval);
 			}
+			if (timerInterval) {
+				clearInterval(timerInterval);
+			}
 			if (mediaRecorder && mediaRecorder.state !== 'inactive') {
 				mediaRecorder.stop();
 			}
@@ -80,7 +104,11 @@
 </script>
 
 <div class="screen" onclick={toggleRecording}>
-	<div class="circle" style="transform: scale({circleScale})"></div>
+	<div class="circle" style="transform: scale({circleScale})">
+		{#if recording}
+			<span class="timer">{formatTime(recordingTime)}</span>
+		{/if}
+	</div>
 </div>
 
 <style>
@@ -99,6 +127,17 @@
 		height: 144px;
 		background-color: #ff0033;
 		border-radius: 50%;
-		transition: transform 600ms ease-in-out;
+		transition: transform 800ms ease-in-out;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		position: relative;
+	}
+
+	.timer {
+		color: white;
+		font-size: 24px;
+		font-weight: bold;
+		font-family: monospace;
 	}
 </style>

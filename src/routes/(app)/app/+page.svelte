@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
 
 	let recording = $state(false);
 	let mediaRecorder: MediaRecorder | null = null;
 	let audioChunks: Blob[] = [];
-	let pulseInterval: number | null = null;
+	let pulseInterval: ReturnType<typeof setInterval> | null = null;
 	let circleScale = $state(1);
 	let recordingTime = $state(0);
-	let timerInterval: number | null = null;
+	let timerInterval: ReturnType<typeof setInterval> | null = null;
+	let uploading = $state(false);
 
 	function formatTime(seconds: number): string {
 		const mins = Math.floor(seconds / 60);
@@ -27,15 +29,43 @@
 					audioChunks.push(event.data);
 				};
 
-				mediaRecorder.onstop = () => {
+				mediaRecorder.onstop = async () => {
 					const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-					// For now, we'll just create a download link
-					const url = URL.createObjectURL(audioBlob);
-					const a = document.createElement('a');
-					a.href = url;
-					a.download = `memo-${Date.now()}.webm`;
-					a.click();
-					URL.revokeObjectURL(url);
+
+					// Upload to Supabase Storage
+					uploading = true;
+					try {
+						const supabase = $page.data.supabase;
+						const user = $page.data.user;
+
+						if (!user) {
+							console.error('User not authenticated');
+							return;
+						}
+
+						const fileName = `${user.id}/${Date.now()}.webm`;
+
+						const { data, error } = await supabase.storage
+							.from('voice-memos')
+							.upload(fileName, audioBlob, {
+								contentType: 'audio/webm',
+								cacheControl: '3600',
+								upsert: false
+							});
+
+						if (error) {
+							console.error('Upload error:', error);
+							if (error.message === 'Bucket not found') {
+								alert('Please create a "voice-memos" bucket in Supabase Storage');
+							}
+						} else {
+							console.log('Upload successful:', data);
+						}
+					} catch (err) {
+						console.error('Error uploading:', err);
+					} finally {
+						uploading = false;
+					}
 
 					// Stop all tracks
 					stream.getTracks().forEach((track) => track.stop());
@@ -107,6 +137,8 @@
 	<div class="circle" style="transform: scale({circleScale})">
 		{#if recording}
 			<span class="timer">{formatTime(recordingTime)}</span>
+		{:else if uploading}
+			<span class="timer">Uploading...</span>
 		{/if}
 	</div>
 </div>

@@ -1,4 +1,6 @@
 import { Flow } from '@pgflow/dsl';
+import downloadStorageFile from '../_tasks/downloadStorageFile.ts';
+import transcribeAudioFile from '../_tasks/transcribeAudioFile.ts';
 
 type Input = {
 	storage_path: string;
@@ -9,39 +11,45 @@ export const ProcessVoiceMemo = new Flow<Input>({
 	slug: 'processVoiceMemo'
 })
 	.step({ slug: 'transcription' }, async ({ run }) => {
+		// Download and transcribe in one step
 		const { storage_path } = run;
-		console.log(storage_path);
-		return {};
-	})
-	.step(
-		{
-			slug: 'transcription',
-			dependsOn: ['download-audio']
-		},
-		async ({ run }) => {
-			// Transcribe using Groq API
-			const { storage_path } = run;
-			console.log(storage_path);
 
-			// This will be handled by the Edge Function
-			return {
-				storage_path,
-				status: 'ready_for_transcription'
-			};
-		}
-	)
+		// Download the audio file from storage
+		const audioBuffer = await downloadStorageFile(storage_path);
+
+		// Extract filename from storage path for format detection
+		const filename = storage_path.split('/').pop() || 'audio.wav';
+
+		// Transcribe the audio
+		const transcription = await transcribeAudioFile(audioBuffer, filename, {
+			language: 'en' // Default to English, could be made configurable
+		});
+
+		return {
+			text: transcription.text,
+			language: transcription.language,
+			duration: transcription.duration,
+			storage_path
+		};
+	})
 	.step(
 		{
 			slug: 'saveTranscription',
 			dependsOn: ['transcription']
 		},
-		async ({ run }) => {
+		async ({ run, transcription }) => {
 			// Save transcription to database
-			const { storage_path } = run;
+			const { user_id } = run;
 
+			// This would typically save to a database table
+			// For now, we'll just return the data structure
 			return {
-				storage_path,
-				status: 'ready_to_save'
+				user_id,
+				storage_path: run.storage_path,
+				transcription_text: transcription.text,
+				language: transcription.language,
+				duration: transcription.duration,
+				created_at: new Date().toISOString()
 			};
 		}
 	);
